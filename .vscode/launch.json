@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug",
+            "program": "${workspaceFolder}/build_debug/fluidSim",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Run_build_debug"
+        }
+    ]
+}

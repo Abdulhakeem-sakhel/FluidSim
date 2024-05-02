@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Run_build_debug",
+        "type": "shell",
+        "command": "${workspaceFolder}/build_debug.sh",
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "presentation": {
+          "reveal": "always",
+          "panel": "shared"
+        },
+        "problemMatcher": [],
+        "dependsOrder": "sequence",
+        "dependsOn": []
+      },
+    ]
+}
