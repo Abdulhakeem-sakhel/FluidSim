@@ -16,8 +16,8 @@ int main() {
         playground.handelMouseMovement();
         BeginDrawing();
             ClearBackground(DARKGRAY);
-            DrawText(TextFormat("FPS: %d", GetFPS()), 0, 30, 30, RED);
             playground.draw();
+            DrawText(TextFormat("FPS: %d", GetFPS()), 0, 30, 30, RED);
         EndDrawing(); 
     }
     CloseWindow();

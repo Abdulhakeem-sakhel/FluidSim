@@ -1,6 +1,8 @@
 #include "sim.h"
 #include "particle.h"
+#include "utils.h"
 #include <cmath>
+#include <cstdlib>
 #include <raylib.h>
 #include <vector>
 
@@ -9,10 +11,10 @@ const int PARTICLE_RADIUS = 5;
 
 Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1) {
     particles = std::vector<Particle>(PARTICLE_NUMBERS);
-    setParticleGrid();
+    initPartialInGrid(3);
 }
 
-void Sim::setParticleGrid() {
+void Sim::initPartialInGrid(int offset) {
     int width = GetScreenWidth();
     int height = GetScreenHeight();
     int row = std::sqrt(PARTICLE_NUMBERS);;
@@ -24,33 +26,24 @@ void Sim::setParticleGrid() {
     };
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < column; j++) {
-            float xPosition = leftCorner.x + (j*(PARTICLE_RADIUS*2));
-            float yPosition = leftCorner.y + (i*(PARTICLE_RADIUS*2));
+            float xPosition = leftCorner.x + (j*(PARTICLE_RADIUS*2 + offset));
+            float yPosition = leftCorner.y + (i*(PARTICLE_RADIUS*2 + offset));
             particles[i*column + j].position = Vector2{xPosition, yPosition};
             particles[i*column + j].prevPosition = Vector2{xPosition, yPosition};
+            particles[i*column + j].velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
         }
     }
     
     if (row * column == PARTICLE_NUMBERS) return;
     int leftParticle = PARTICLE_NUMBERS - (row*column);
     for(int i =0; i < leftParticle; i++) {
-        float xPosition = leftCorner.x + ((i % column)*(PARTICLE_RADIUS*2));
+        float xPosition = leftCorner.x + ((i % column)*(PARTICLE_RADIUS*2 + offset));
         if (i % column == 0 && i != 0) 
             row++;
-        float yPosition = leftCorner.y + ((row)*(PARTICLE_RADIUS*2));
+        float yPosition = leftCorner.y + ((row)*(PARTICLE_RADIUS*2 + offset));
         particles[row*column + (i % column)].position = Vector2{xPosition, yPosition};
         particles[row*column + (i % column)].prevPosition = Vector2{xPosition, yPosition};
-    }
-}
-
-void Sim::update(float dt) {
-    
-}
-
-void Sim::draw() {
-    for (const auto& particle: particles) {
-        DrawCircle(particle.position.x, particle.position.y, PARTICLE_RADIUS, particle.color);
-
+        particles[row*column + (i % column)].velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
     }
 }
 
@@ -64,8 +57,42 @@ void Sim::predictPosition(float dt) {
 
 void Sim::computeNextVelocity(float dt) {
     for (auto &particle: particles) {
-        particle.velocity = Vec2Ops::scale(
+        Vector2 velocity = Vec2Ops::scale(
             Vec2Ops::sub(particle.position, particle.prevPosition),
             1.0 / dt);
+        particle.velocity = velocity;
+    }
+}
+
+void Sim::worldBoundary() {
+    for (auto &particle: particles) {
+        if (particle.position.x < PARTICLE_RADIUS) {
+            particle.velocity.x *= -1;
+        }
+
+        if (particle.position.y < PARTICLE_RADIUS) {
+            particle.velocity.y *= -1;
+        }
+
+        if (particle.position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
+            particle.velocity.x *= -1;
+        }
+
+        if (particle.position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
+            particle.velocity.y *= -1;
+        }
+    }
+}
+
+void Sim::update(float dt) {
+    predictPosition(dt);
+    computeNextVelocity(dt);
+    worldBoundary();
+}
+
+void Sim::draw() {
+    for (const auto& particle: particles) {
+        DrawCircle(particle.position.x, particle.position.y, PARTICLE_RADIUS, particle.color);
+
     }
 }

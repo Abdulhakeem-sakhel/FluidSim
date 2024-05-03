@@ -8,7 +8,8 @@ Playground::Playground() {
 }
 
 void Playground::update(float dt) {
-    simulation.update(dt);
+    if (dt == 0) return;
+    simulation.update(dt*100);
 }
 
 void Playground::draw() {

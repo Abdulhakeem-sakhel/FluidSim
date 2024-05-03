@@ -43,5 +43,7 @@ namespace myMaths {
         return -1;
     }
     return (rand() % (max - min + 1)) + min;
-}
+    }
+    
+    inline float randf() {return static_cast<float>(rand()) / static_cast <float> (RAND_MAX); }
 }
