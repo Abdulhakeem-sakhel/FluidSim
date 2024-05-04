@@ -3,14 +3,17 @@
 #include "utils.h"
 #include <cmath>
 #include <cstdlib>
+#include <memory>
 #include <raylib.h>
 #include <vector>
 
 const int PARTICLE_RADIUS = 5;
 
 
-Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1) {
-    particles = std::vector<Particle>(PARTICLE_NUMBERS);
+Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1){
+    for(int i = 0; i < PARTICLE_NUMBERS; i++) {  
+        particles.push_back(std::make_shared<Particle>());
+    }
     initPartialInGrid(3);
 }
 
@@ -28,9 +31,9 @@ void Sim::initPartialInGrid(int offset) {
         for (int j = 0; j < column; j++) {
             float xPosition = leftCorner.x + (j*(PARTICLE_RADIUS*2 + offset));
             float yPosition = leftCorner.y + (i*(PARTICLE_RADIUS*2 + offset));
-            particles[i*column + j].position = Vector2{xPosition, yPosition};
-            particles[i*column + j].prevPosition = Vector2{xPosition, yPosition};
-            particles[i*column + j].velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
+            particles[i*column + j]->position = Vector2{xPosition, yPosition};
+            particles[i*column + j]->prevPosition = Vector2{xPosition, yPosition};
+            particles[i*column + j]->velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
         }
     }
     
@@ -41,45 +44,46 @@ void Sim::initPartialInGrid(int offset) {
         if (i % column == 0 && i != 0) 
             row++;
         float yPosition = leftCorner.y + ((row)*(PARTICLE_RADIUS*2 + offset));
-        particles[row*column + (i % column)].position = Vector2{xPosition, yPosition};
-        particles[row*column + (i % column)].prevPosition = Vector2{xPosition, yPosition};
-        particles[row*column + (i % column)].velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
+        particles[row*column + (i % column)]->position = Vector2{xPosition, yPosition};
+        particles[row*column + (i % column)]->prevPosition = Vector2{xPosition, yPosition};
+        particles[row*column + (i % column)]->velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
     }
+
 }
 
 void Sim::predictPosition(float dt) {
     for (auto &particle: particles) {
-        particle.prevPosition = particle.position;
-        Vector2 positionDelta = Vec2Ops::scale(particle.velocity, dt * VELOCITY_DAMPING);
-        particle.position = Vec2Ops::add(particle.position, positionDelta);
+        particle->prevPosition = particle->position;
+        Vector2 positionDelta = Vec2Ops::scale(particle->velocity, dt * VELOCITY_DAMPING);
+        particle->position = Vec2Ops::add(particle->position, positionDelta);
     }
 }
 
 void Sim::computeNextVelocity(float dt) {
     for (auto &particle: particles) {
         Vector2 velocity = Vec2Ops::scale(
-            Vec2Ops::sub(particle.position, particle.prevPosition),
+            Vec2Ops::sub(particle->position, particle->prevPosition),
             1.0 / dt);
-        particle.velocity = velocity;
+        particle->velocity = velocity;
     }
 }
 
 void Sim::worldBoundary() {
     for (auto &particle: particles) {
-        if (particle.position.x < PARTICLE_RADIUS) {
-            particle.velocity.x *= -1;
+        if (particle->position.x < PARTICLE_RADIUS) {
+            particle->velocity.x *= -1;
         }
 
-        if (particle.position.y < PARTICLE_RADIUS) {
-            particle.velocity.y *= -1;
+        if (particle->position.y < PARTICLE_RADIUS) {
+            particle->velocity.y *= -1;
         }
 
-        if (particle.position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
-            particle.velocity.x *= -1;
+        if (particle->position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
+            particle->velocity.x *= -1;
         }
 
-        if (particle.position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
-            particle.velocity.y *= -1;
+        if (particle->position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
+            particle->velocity.y *= -1;
         }
     }
 }
@@ -92,7 +96,6 @@ void Sim::update(float dt) {
 
 void Sim::draw() {
     for (const auto& particle: particles) {
-        DrawCircle(particle.position.x, particle.position.y, PARTICLE_RADIUS, particle.color);
-
+        DrawCircle(particle->position.x, particle->position.y, PARTICLE_RADIUS, particle->color);
     }
 }
