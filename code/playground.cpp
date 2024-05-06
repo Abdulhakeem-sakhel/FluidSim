@@ -9,7 +9,7 @@ Playground::Playground() {
 
 void Playground::update(float dt) {
     if (dt == 0) return;
-    simulation.update(dt*100);
+    simulation.update(dt*20);
 }
 
 void Playground::draw() {

@@ -10,9 +10,8 @@
 
 const int PARTICLE_RADIUS = 5;
 
-
-Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1),
-    fluidHashGrid(25, particles){
+Sim::Sim(): PARTICLE_NUMBERS(2000), VELOCITY_DAMPING(1),
+    fluidHashGrid(INTERACTION_RADIUS, particles){
     for(int i = 0; i < PARTICLE_NUMBERS; i++) {  
         particles.push_back(std::make_shared<Particle>());
     }
@@ -73,51 +72,101 @@ void Sim::computeNextVelocity(float dt) {
     }
 }
 
-void Sim::neighbourSearch(Vector2 mousePosition) {
-    fluidHashGrid.clearGrid();
-    fluidHashGrid.mapParticleToCell();
-
-    particles[0]->position = mousePosition;
-    auto content = fluidHashGrid.getNeighbourOfParticleIdx(0);
-
-    for(auto particle: particles) {
-        particle->color = BLUE;
-    }
-
-    for(auto particle: content) { 
-        Vector2 direction = Vec2Ops::sub(particle->position, mousePosition);
-        float lengthSquared = Vec2Ops::length2(direction);
-
-        if (lengthSquared <= fluidHashGrid.cellSize * fluidHashGrid.cellSize) 
-            particle->color = YELLOW;
+void Sim::applyGravity(float dt) {
+    for (auto particle: particles) {
+        particle->velocity = Vec2Ops::add(
+            particle->velocity,
+            Vec2Ops::scale(GRAVITY, dt)); 
     }
 }
 
+void Sim::doubleDensityRelaxation(float dt) {
+    for (int i = 0; i < particles.size(); i++) {
+        float density = 0.f;
+        float nearDensity = 0.f;
+        auto neighbourParticles = fluidHashGrid.getNeighbourOfParticleIdx(i);
+        for (int j = 0; j < neighbourParticles.size(); j++) {
+            if (neighbourParticles[j] == particles[i]) continue;
+
+            Vector2 rij = Vec2Ops::sub(neighbourParticles[j]->position, particles[i]->position);
+            float q = Vec2Ops::length(rij) / INTERACTION_RADIUS;
+
+            if (q < 1.f) {
+                density += std::pow(1 - q, 2);
+                nearDensity += std::pow(1 - q, 3);
+
+            }
+        }
+
+        auto pressure = k * (density - REST_DENSITY);
+        auto pressureNear = k_NEAR * nearDensity;
+        Vector2 particleADisplacement = Vec2Ops::ZERO;
+
+        for (int j = 0; j < neighbourParticles.size(); j++) {
+            if (neighbourParticles[j] == particles[i]) continue;
+
+            Vector2 rij = Vec2Ops::sub(neighbourParticles[j]->position, particles[i]->position);
+            float q = Vec2Ops::length(rij) / INTERACTION_RADIUS;
+
+            if (q < 1.f) {
+                Vec2Ops::normalize(rij);
+                auto displacementTerm = std::pow(dt, 2) *
+                    (pressure * (1-q) + pressureNear * std::pow(1-q, 2));
+
+                Vector2 D = Vec2Ops::scale(rij, displacementTerm);
+                neighbourParticles[j]->position = Vec2Ops::add(neighbourParticles[j]->position,
+                    Vec2Ops::scale(D, .5));
+                particleADisplacement = Vec2Ops::sub(particleADisplacement, 
+                    Vec2Ops::scale(D, .5));
+                
+            }
+        }
+        particles[i]->position = Vec2Ops::add(particles[i]->position, particleADisplacement);
+    }
+}
+
+void Sim::neighbourSearch() {
+    fluidHashGrid.clearGrid();
+    fluidHashGrid.mapParticleToCell();
+}
+
 void Sim::worldBoundary() {
-    for (auto &particle: particles) {
+    for (auto particle: particles) {
+
+
         if (particle->position.x < PARTICLE_RADIUS) {
-            particle->velocity.x *= -1;
+            // particle->velocity.x *= -1;
+            particle->position.x = PARTICLE_RADIUS;
+            particle->prevPosition.x = PARTICLE_RADIUS;
         }
 
         if (particle->position.y < PARTICLE_RADIUS) {
-            particle->velocity.y *= -1;
+            // particle->velocity.y *= -1;
+            particle->position.y = PARTICLE_RADIUS;
+            particle->prevPosition.y = PARTICLE_RADIUS;
         }
 
         if (particle->position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
-            particle->velocity.x *= -1;
+            // particle->velocity.x *= -1 ;
+            particle->position.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
+            particle->prevPosition.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
         }
 
         if (particle->position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
-            particle->velocity.y *= -1;
+            // particle->velocity.y *= -1;
+            particle->position.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
+            particle->prevPosition.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
         }
     }
 }
 
 void Sim::update(float dt) {
-    neighbourSearch(GetMousePosition());
-    //predictPosition(dt);
-    //computeNextVelocity(dt);
+    applyGravity(dt);
+    predictPosition(dt);
+    neighbourSearch();
+    doubleDensityRelaxation(dt);
     worldBoundary();
+    computeNextVelocity(dt);
 }
 
 void Sim::draw() {
