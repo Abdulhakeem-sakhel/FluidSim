@@ -1,7 +1,9 @@
 #include "sim.h"
+#include "fluidhashgrid.h"
 #include "particle.h"
 #include "utils.h"
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <raylib.h>
@@ -10,11 +12,15 @@
 const int PARTICLE_RADIUS = 5;
 
 
-Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1){
+Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1),
+    fluidHashGrid(30, particles){
     for(int i = 0; i < PARTICLE_NUMBERS; i++) {  
         particles.push_back(std::make_shared<Particle>());
     }
+
+    //let test it out after and before
     initPartialInGrid(3);
+    fluidHashGrid.particles = particles;
 }
 
 void Sim::initPartialInGrid(int offset) {
@@ -68,6 +74,23 @@ void Sim::computeNextVelocity(float dt) {
     }
 }
 
+void Sim::neighbourSearch(Vector2 mousePosition) {
+    fluidHashGrid.clearGrid();
+    fluidHashGrid.mapParticleToCell();
+
+    uint64_t gridHashId = fluidHashGrid.getGridHashFromPosition(mousePosition);
+    auto content = fluidHashGrid.getContentCell(gridHashId);
+
+    for(auto particle: particles) {
+        particle->color = BLUE;
+    }
+
+    if (content == nullptr) return ;
+    for(auto particle: *content) { 
+        particle->color = YELLOW;
+    }
+}
+
 void Sim::worldBoundary() {
     for (auto &particle: particles) {
         if (particle->position.x < PARTICLE_RADIUS) {
@@ -89,6 +112,7 @@ void Sim::worldBoundary() {
 }
 
 void Sim::update(float dt) {
+    neighbourSearch(GetMousePosition());
     predictPosition(dt);
     computeNextVelocity(dt);
     worldBoundary();
