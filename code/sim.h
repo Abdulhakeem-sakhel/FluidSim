@@ -17,11 +17,14 @@ public:
     void doubleDensityRelaxation(float dt);
     void neighbourSearch();
     void worldBoundary();
-private:
+
+    
     long PARTICLE_NUMBERS;
     float VELOCITY_DAMPING;
     std::vector<std::shared_ptr<Particle>> particles;
     FluidHashGrid fluidHashGrid;
+    
+private:
 
     //consts
     static constexpr Vector2 GRAVITY = {0, 1};

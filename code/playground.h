@@ -9,8 +9,8 @@ class Playground {
     void draw();
 
     void handelMouseInput();
-    void handelMouseMovement();
 
+    void spawnParticle(Vector2 mousePos);    
     //vars
     Sim simulation;
 };

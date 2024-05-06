@@ -1,6 +1,9 @@
 #include "playground.h"
+#include "particle.h"
 #include "sim.h"
+#include "utils.h"
 #include <iostream>
+#include <memory>
 #include <raylib.h>
 
 Playground::Playground() {
@@ -25,12 +28,21 @@ void Playground::handelMouseInput() {
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         std::cout << "Mouse pressed\n";
     }
-}
-void Playground::handelMouseMovement() {
-    Vector2 mouseDelta = GetMouseDelta();
-    if(mouseDelta.x != 0 || mouseDelta.y != 0) {
-        Vector2 mousePos = GetMousePosition();
-        // prev pos currentPos - delta
-    }
 
+    if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+        std::cout << "spawned particle\n";
+        spawnParticle(GetMousePosition());
+    }
+}
+
+void Playground::spawnParticle(Vector2 mousePos){
+    std::shared_ptr<Particle> particle = std::make_shared<Particle>();
+    particle->position = mousePos;
+    particle->prevPosition = mousePos;
+    particle->velocity = Vector2{myMaths::randf() -0.5f, myMaths::randf() -0.5f};
+    particle->color = BLUE;
+
+    simulation.PARTICLE_NUMBERS +=1;
+    simulation.particles.push_back(particle);
+    simulation.fluidHashGrid.particles.push_back(particle);
 }

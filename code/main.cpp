@@ -13,7 +13,6 @@ int main() {
     while(WindowShouldClose() == false) {
         playground.update(GetFrameTime());
         playground.handelMouseInput();
-        playground.handelMouseMovement();
         BeginDrawing();
             ClearBackground(DARKGRAY);
             playground.draw();
