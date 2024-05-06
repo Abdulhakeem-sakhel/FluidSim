@@ -13,6 +13,7 @@ class FluidHashGrid {
 
     uint64_t getGridHashFromPosition(Vector2 position);
     uint64_t cellIndexToHash(uint64_t x, uint64_t y);
+    std::vector<std::shared_ptr<Particle>> getNeighbourOfParticleIdx(uint64_t i);
     void mapParticleToCell();
     void clearGrid();
     std::vector<std::shared_ptr<Particle>> *getContentCell(uint64_t id);

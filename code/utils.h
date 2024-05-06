@@ -12,6 +12,11 @@ namespace Vec2Ops {
         return std::sqrt(v1.x*v1.x + v1.y*v1.y);
     }
 
+     inline float length2(const Vector2 &v1) {
+        return v1.x*v1.x + v1.y*v1.y;
+    }
+
+
     inline Vector2 getNormal(const Vector2 &v1) {
         return Vector2{v1.y, v1.x};
     } 

@@ -31,8 +31,29 @@ uint64_t FluidHashGrid::cellIndexToHash(uint64_t x, uint64_t y) {
     return hash;
 }
 
-void FluidHashGrid::mapParticleToCell() {
+std::vector<std::shared_ptr<Particle>> FluidHashGrid::getNeighbourOfParticleIdx(uint64_t i) {
+    auto neighbors = std::vector<std::shared_ptr<Particle>>();
+    
+    uint64_t particleGridX= static_cast<uint64_t>(particles[i]->position.x / cellSize);
+    uint64_t particleGridY= static_cast<uint64_t>(particles[i]->position.y / cellSize);
 
+    for (int x = -1; x <= 1; x++) {
+        for(int y = -1; y<=1; y++) {
+            uint64_t gridX = particleGridX + x;
+            uint64_t gridY = particleGridY + y;
+
+            uint64_t hash = cellIndexToHash(gridX, gridY);
+            auto content = getContentCell(hash);
+
+            if (content == nullptr) continue;
+            neighbors.insert(neighbors.end(), content->begin(), content->end());
+        }
+    }
+
+    return neighbors;
+}
+
+void FluidHashGrid::mapParticleToCell() {
     for (auto particle: particles) {
         uint64_t hash =  getGridHashFromPosition(particle->position);
 
