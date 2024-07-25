@@ -17,6 +17,7 @@ int main() {
             ClearBackground(DARKGRAY);
             playground.draw();
             DrawText(TextFormat("FPS: %d", GetFPS()), 0, 30, 30, RED);
+            DrawText(TextFormat("particles: %d", playground.simulation.particles.size()), 0, 60, 30, RED);
         EndDrawing(); 
     }
     CloseWindow();

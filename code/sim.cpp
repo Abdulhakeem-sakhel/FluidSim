@@ -10,7 +10,7 @@
 
 const int PARTICLE_RADIUS = 5;
 
-Sim::Sim(): PARTICLE_NUMBERS(1000), VELOCITY_DAMPING(1),
+Sim::Sim(): PARTICLE_NUMBERS(2000), VELOCITY_DAMPING(1),
     fluidHashGrid(INTERACTION_RADIUS, particles){
     for(int i = 0; i < PARTICLE_NUMBERS; i++) {  
         particles.push_back(std::make_shared<Particle>());
