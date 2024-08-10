@@ -8,7 +8,7 @@
 
 FluidHashGrid::FluidHashGrid(float cellSize, std::vector<Particle> &particles)
     : cellSize(cellSize),
-    hashMapSize(1000000),
+    hashMapSize(10000),
     particles(particles) {
 }
 
