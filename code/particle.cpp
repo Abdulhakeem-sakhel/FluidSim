@@ -1,11 +1,10 @@
 #include "particle.h"
-#include "utils.h"
 #include <raylib.h>
 
-Particle::Particle(Vector2 position): 
+Particle::Particle(Vector2 position, Vector2 prevPosition, Vector2 velocity, Color color): 
     position(position), 
-    prevPosition(position),
-    velocity(Vec2Ops::ZERO),
-    color(SKYBLUE) {
+    prevPosition(prevPosition),
+    velocity(velocity),
+    color(color) {
 }
 

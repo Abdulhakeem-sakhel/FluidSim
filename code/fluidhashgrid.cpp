@@ -6,11 +6,10 @@
 #include <raylib.h>
 #include <vector>
 
-FluidHashGrid::FluidHashGrid(float cellSize, std::vector<uint32_t> particles_index, std::vector<Particle> &particles)
+FluidHashGrid::FluidHashGrid(float cellSize, std::vector<Particle> &particles)
     : cellSize(cellSize),
     hashMapSize(1000000),
-    particles(particles),
-    particles_index(particles_index) {
+    particles(particles) {
 }
 
 uint64_t FluidHashGrid::getGridHashFromPosition(Vector2 position) {
@@ -54,17 +53,18 @@ std::vector<uint32_t> FluidHashGrid::getNeighbourOfParticleIdx(uint64_t i) {
 }
 
 void FluidHashGrid::mapParticleToCell() {
-    for (auto particle_index: particles_index) {
-        uint64_t hash =  getGridHashFromPosition(particles[particle_index].position);
 
+    for (int i = 0; i < particles.size(); i++) {
+        uint64_t hash =  getGridHashFromPosition(particles[i].position);
         auto it = map.find(hash);
+
         if (it == map.end()) {
             auto particleGrid = std::vector<uint32_t>();
-            particleGrid.push_back(particle_index);
+            particleGrid.push_back(i);
             //map.emplace(hash, particleGrid); // Use emplace to construct the value in-place
             map[hash] = particleGrid;
         } else {
-            it->second.push_back(particle_index);
+            it->second.push_back(i);
         }
     }
 }

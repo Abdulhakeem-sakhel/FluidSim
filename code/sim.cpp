@@ -4,21 +4,19 @@
 #include "utils.h"
 #include <cmath>
 #include <cstdlib>
-#include <memory>
 #include <raylib.h>
 #include <vector>
 
+using myMaths::randf;
+
 const int PARTICLE_RADIUS = 5;
 
-Sim::Sim(): PARTICLE_NUMBERS(2000), VELOCITY_DAMPING(1),
+Sim::Sim(): PARTICLE_NUMBERS(2500), VELOCITY_DAMPING(1),
     fluidHashGrid(INTERACTION_RADIUS, particles){
-    for(int i = 0; i < PARTICLE_NUMBERS; i++) {  
-        particles.push_back(std::make_shared<Particle>());
-    }
 
     //let test it out after and before
+    particles.resize(PARTICLE_NUMBERS);
     initPartialInGrid(3);
-    fluidHashGrid.particles = particles;
 }
 
 void Sim::initPartialInGrid(int offset) {
@@ -35,9 +33,10 @@ void Sim::initPartialInGrid(int offset) {
         for (int j = 0; j < column; j++) {
             float xPosition = leftCorner.x + (j*(PARTICLE_RADIUS*2 + offset));
             float yPosition = leftCorner.y + (i*(PARTICLE_RADIUS*2 + offset));
-            particles[i*column + j]->position = Vector2{xPosition, yPosition};
-            particles[i*column + j]->prevPosition = Vector2{xPosition, yPosition};
-            particles[i*column + j]->velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
+            particles[i*column + j].position = Vector2{xPosition, yPosition};
+            particles[i*column + j].prevPosition = Vector2{xPosition, yPosition};
+            particles[i * column + j].velocity =
+                Vector2{myMaths::randf() - .5f, randf() - .5f};
         }
     }
     
@@ -48,34 +47,34 @@ void Sim::initPartialInGrid(int offset) {
         if (i % column == 0 && i != 0) 
             row++;
         float yPosition = leftCorner.y + ((row)*(PARTICLE_RADIUS*2 + offset));
-        particles[row*column + (i % column)]->position = Vector2{xPosition, yPosition};
-        particles[row*column + (i % column)]->prevPosition = Vector2{xPosition, yPosition};
-        particles[row*column + (i % column)]->velocity = Vector2{myMaths::randf() - .5f, myMaths::randf() - .5f};
+        particles[row*column + (i % column)].position = Vector2{xPosition, yPosition};
+        particles[row*column + (i % column)].prevPosition = Vector2{xPosition, yPosition};
+        particles[row*column + (i % column)].velocity = Vector2{randf() - .5f, randf() - .5f};
     }
 
 }
 
 void Sim::predictPosition(float dt) {
     for (auto &particle: particles) {
-        particle->prevPosition = particle->position;
-        Vector2 positionDelta = Vec2Ops::scale(particle->velocity, dt * VELOCITY_DAMPING);
-        particle->position = Vec2Ops::add(particle->position, positionDelta);
+        particle.prevPosition = particle.position;
+        Vector2 positionDelta = Vec2Ops::scale(particle.velocity, dt * VELOCITY_DAMPING);
+        particle.position = Vec2Ops::add(particle.position, positionDelta);
     }
 }
 
 void Sim::computeNextVelocity(float dt) {
     for (auto &particle: particles) {
         Vector2 velocity = Vec2Ops::scale(
-            Vec2Ops::sub(particle->position, particle->prevPosition),
+            Vec2Ops::sub(particle.position, particle.prevPosition),
             1.0 / dt);
-        particle->velocity = velocity;
+        particle.velocity = velocity;
     }
 }
 
 void Sim::applyGravity(float dt) {
-    for (auto particle: particles) {
-        particle->velocity = Vec2Ops::add(
-            particle->velocity,
+    for (auto &particle: particles) {
+        particle.velocity = Vec2Ops::add(
+            particle.velocity,
             Vec2Ops::scale(GRAVITY, dt)); 
     }
 }
@@ -86,9 +85,9 @@ void Sim::doubleDensityRelaxation(float dt) {
         float nearDensity = 0.f;
         auto neighbourParticles = fluidHashGrid.getNeighbourOfParticleIdx(i);
         for (int j = 0; j < neighbourParticles.size(); j++) {
-            if (neighbourParticles[j] == particles[i]) continue;
+            if (&particles[neighbourParticles[j]] == &particles[i]) continue;
 
-            Vector2 rij = Vec2Ops::sub(neighbourParticles[j]->position, particles[i]->position);
+            Vector2 rij = Vec2Ops::sub(particles[neighbourParticles[j]].position, particles[i].position);
             float q = Vec2Ops::length(rij) / INTERACTION_RADIUS;
 
             if (q < 1.f) {
@@ -103,9 +102,9 @@ void Sim::doubleDensityRelaxation(float dt) {
         Vector2 particleADisplacement = Vec2Ops::ZERO;
 
         for (int j = 0; j < neighbourParticles.size(); j++) {
-            if (neighbourParticles[j] == particles[i]) continue;
+            if (&particles[neighbourParticles[j]] == &particles[i]) continue;
 
-            Vector2 rij = Vec2Ops::sub(neighbourParticles[j]->position, particles[i]->position);
+            Vector2 rij = Vec2Ops::sub(particles[neighbourParticles[j]].position, particles[i].position);
             float q = Vec2Ops::length(rij) / INTERACTION_RADIUS;
 
             if (q < 1.f) {
@@ -114,14 +113,14 @@ void Sim::doubleDensityRelaxation(float dt) {
                     (pressure * (1-q) + pressureNear * std::pow(1-q, 2));
 
                 Vector2 D = Vec2Ops::scale(rij, displacementTerm);
-                neighbourParticles[j]->position = Vec2Ops::add(neighbourParticles[j]->position,
+                particles[neighbourParticles[j]].position = Vec2Ops::add(particles[neighbourParticles[j]].position,
                     Vec2Ops::scale(D, .5));
                 particleADisplacement = Vec2Ops::sub(particleADisplacement, 
                     Vec2Ops::scale(D, .5));
                 
             }
         }
-        particles[i]->position = Vec2Ops::add(particles[i]->position, particleADisplacement);
+        particles[i].position = Vec2Ops::add(particles[i].position, particleADisplacement);
     }
 }
 
@@ -131,31 +130,31 @@ void Sim::neighbourSearch() {
 }
 
 void Sim::worldBoundary() {
-    for (auto particle: particles) {
+    for (auto &particle: particles) {
 
 
-        if (particle->position.x < PARTICLE_RADIUS) {
-            // particle->velocity.x *= -1;
-            particle->position.x = PARTICLE_RADIUS;
-            particle->prevPosition.x = PARTICLE_RADIUS;
+        if (particle.position.x < PARTICLE_RADIUS) {
+            // particle.velocity.x *= -1;
+            particle.position.x = PARTICLE_RADIUS;
+            particle.prevPosition.x = PARTICLE_RADIUS;
         }
 
-        if (particle->position.y < PARTICLE_RADIUS) {
-            // particle->velocity.y *= -1;
-            particle->position.y = PARTICLE_RADIUS;
-            particle->prevPosition.y = PARTICLE_RADIUS;
+        if (particle.position.y < PARTICLE_RADIUS) {
+            // particle.velocity.y *= -1;
+            particle.position.y = PARTICLE_RADIUS;
+            particle.prevPosition.y = PARTICLE_RADIUS;
         }
 
-        if (particle->position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
-            // particle->velocity.x *= -1 ;
-            particle->position.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
-            particle->prevPosition.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
+        if (particle.position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
+            // particle.velocity.x *= -1 ;
+            particle.position.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
+            particle.prevPosition.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
         }
 
-        if (particle->position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
-            // particle->velocity.y *= -1;
-            particle->position.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
-            particle->prevPosition.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
+        if (particle.position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
+            // particle.velocity.y *= -1;
+            particle.position.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
+            particle.prevPosition.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
         }
     }
 }
@@ -171,6 +170,6 @@ void Sim::update(float dt) {
 
 void Sim::draw() {
     for (const auto& particle: particles) {
-        DrawCircle(particle->position.x, particle->position.y, PARTICLE_RADIUS, particle->color);
+        DrawCircle(particle.position.x, particle.position.y, PARTICLE_RADIUS, particle.color);
     }
 }

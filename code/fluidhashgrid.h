@@ -8,7 +8,7 @@
 
 class FluidHashGrid {
     public:
-    FluidHashGrid(float cellSize, std::vector<uint32_t> particles_index,std::vector<Particle> &particles);
+    FluidHashGrid(float cellSize, std::vector<Particle> &particles);
 
     uint64_t getGridHashFromPosition(Vector2 position);
     uint64_t cellIndexToHash(uint64_t x, uint64_t y);
