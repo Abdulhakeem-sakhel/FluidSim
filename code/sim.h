@@ -1,7 +1,6 @@
 #pragma once
 #include "fluidhashgrid.h"
 #include "particle.h"
-#include <memory>
 #include <raylib.h>
 #include <vector>
 class Sim {
@@ -21,7 +20,7 @@ public:
     
     long PARTICLE_NUMBERS;
     float VELOCITY_DAMPING;
-    std::vector<std::shared_ptr<Particle>> particles;
+    std::vector<Particle> particles;
     FluidHashGrid fluidHashGrid;
     
 private:

@@ -3,14 +3,14 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <raylib.h>
 #include <vector>
 
-FluidHashGrid::FluidHashGrid(float cellSize, std::vector<std::shared_ptr<Particle>> particles)
+FluidHashGrid::FluidHashGrid(float cellSize, std::vector<uint32_t> particles_index, std::vector<Particle> &particles)
     : cellSize(cellSize),
     hashMapSize(1000000),
-    particles(particles) {
+    particles(particles),
+    particles_index(particles_index) {
 }
 
 uint64_t FluidHashGrid::getGridHashFromPosition(Vector2 position) {
@@ -31,11 +31,11 @@ uint64_t FluidHashGrid::cellIndexToHash(uint64_t x, uint64_t y) {
     return hash;
 }
 
-std::vector<std::shared_ptr<Particle>> FluidHashGrid::getNeighbourOfParticleIdx(uint64_t i) {
-    auto neighbors = std::vector<std::shared_ptr<Particle>>();
+std::vector<uint32_t> FluidHashGrid::getNeighbourOfParticleIdx(uint64_t i) {
+    auto neighbors = std::vector<uint32_t>();
     
-    uint64_t particleGridX= static_cast<uint64_t>(particles[i]->position.x / cellSize);
-    uint64_t particleGridY= static_cast<uint64_t>(particles[i]->position.y / cellSize);
+    uint64_t particleGridX= static_cast<uint64_t>(particles[i].position.x / cellSize);
+    uint64_t particleGridY= static_cast<uint64_t>(particles[i].position.y / cellSize);
 
     for (int x = -1; x <= 1; x++) {
         for(int y = -1; y<=1; y++) {
@@ -54,22 +54,22 @@ std::vector<std::shared_ptr<Particle>> FluidHashGrid::getNeighbourOfParticleIdx(
 }
 
 void FluidHashGrid::mapParticleToCell() {
-    for (auto particle: particles) {
-        uint64_t hash =  getGridHashFromPosition(particle->position);
+    for (auto particle_index: particles_index) {
+        uint64_t hash =  getGridHashFromPosition(particles[particle_index].position);
 
         auto it = map.find(hash);
         if (it == map.end()) {
-            auto particleGrid = std::vector<std::shared_ptr<Particle>>();
-            particleGrid.push_back(particle);
+            auto particleGrid = std::vector<uint32_t>();
+            particleGrid.push_back(particle_index);
             //map.emplace(hash, particleGrid); // Use emplace to construct the value in-place
             map[hash] = particleGrid;
         } else {
-            it->second.push_back(particle);
+            it->second.push_back(particle_index);
         }
     }
 }
 
-std::vector<std::shared_ptr<Particle>> *FluidHashGrid::getContentCell(uint64_t id) {
+std::vector<uint32_t> *FluidHashGrid::getContentCell(uint64_t id) {
     auto it = map.find(id);
 
     if (it == map.end()) {
