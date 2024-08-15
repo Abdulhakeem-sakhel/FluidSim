@@ -59,9 +59,10 @@ void FluidHashGrid::mapParticleToCell() {
         auto it = map.find(hash);
 
         if (it == map.end()) {
+            //TODO if a vector is there 
             auto particleGrid = std::vector<uint32_t>();
             particleGrid.push_back(i);
-            //map.emplace(hash, particleGrid); // Use emplace to construct the value in-place
+            //map.emplace(hash, particleGrid); // Use emplace to construct the value in-place1
             map[hash] = particleGrid;
         } else {
             it->second.push_back(i);
@@ -80,5 +81,8 @@ std::vector<uint32_t> *FluidHashGrid::getContentCell(uint64_t id) {
 }
 
 void FluidHashGrid::clearGrid() {
-    map.clear();
+    for (auto &item: map) {
+        item.second.clear();
+    }
+
 }

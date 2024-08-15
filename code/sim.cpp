@@ -6,12 +6,13 @@
 #include <cstdlib>
 #include <raylib.h>
 #include <vector>
+#include <omp.h>
 
 using myMaths::randf;
 
 const int PARTICLE_RADIUS = 5;
 
-Sim::Sim(): PARTICLE_NUMBERS(2500), VELOCITY_DAMPING(1),
+Sim::Sim(): PARTICLE_NUMBERS(5000), VELOCITY_DAMPING(1),
     fluidHashGrid(INTERACTION_RADIUS, particles){
 
     //let test it out after and before
@@ -80,6 +81,7 @@ void Sim::applyGravity(float dt) {
 }
 
 void Sim::doubleDensityRelaxation(float dt) {
+    #pragma omp parallel for
     for (int i = 0; i < particles.size(); i++) {
         float density = 0.f;
         float nearDensity = 0.f;
@@ -160,9 +162,9 @@ void Sim::worldBoundary() {
 }
 
 void Sim::update(float dt) {
+    neighbourSearch();
     applyGravity(dt);
     predictPosition(dt);
-    neighbourSearch();
     doubleDensityRelaxation(dt);
     worldBoundary();
     computeNextVelocity(dt);

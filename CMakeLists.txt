@@ -8,9 +8,13 @@ set(NAME fluidSim)
 project(${NAME})
 
 find_package(raylib 4.5 REQUIRED)
+find_package(OpenMP REQUIRED)
 
 file(GLOB_RECURSE SOURCE_FILES "code/*.cpp" "code/*.h")
 
 add_executable(${NAME} ${SOURCE_FILES})
 
 target_link_libraries(${NAME} raylib)
+if (OpenMP_CXX_FOUND)
+    target_link_libraries(${NAME} OpenMP::OpenMP_CXX)
+endif()
