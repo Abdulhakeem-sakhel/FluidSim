@@ -1,88 +1,70 @@
 #include "fluidhashgrid.h"
-#include "particle.h"
-#include <cmath>
+
+#include <algorithm>
 #include <cstdint>
-#include <functional>
-#include <raylib.h>
-#include <vector>
+#include <limits>
 
 FluidHashGrid::FluidHashGrid(float cellSize, std::vector<Particle> &particles)
     : cellSize(cellSize),
-    hashMapSize(10000),
-    particles(particles) {
+      invCellSize(cellSize > 0.0f ? (1.0f / cellSize) : 0.0f),
+      worldWidth(0),
+      worldHeight(0),
+      cellsX(0),
+      cellsY(0),
+      particles(particles) {
 }
 
-uint64_t FluidHashGrid::getGridHashFromPosition(Vector2 position) {
-    uint64_t x= static_cast<uint64_t>(position.x / cellSize);
-    uint64_t y= static_cast<uint64_t>(position.y / cellSize);
+void FluidHashGrid::setWorldSize(int width, int height) {
+    width = std::max(width, 1);
+    height = std::max(height, 1);
 
-    return cellIndexToHash(x, y);
-}
+    // Compute uniform grid resolution.
+    // +1 so particles exactly on the boundary still map to a valid cell.
+    const int newCellsX = std::max(1, static_cast<int>(width * invCellSize) + 1);
+    const int newCellsY = std::max(1, static_cast<int>(height * invCellSize) + 1);
 
-uint64_t FluidHashGrid::cellIndexToHash(uint64_t x, uint64_t y) {
-    uint64_t combined = (x << 32) | y;
-    
-    std::hash<uint64_t> hasher;
-    uint64_t hash = hasher(combined);
-
-    hash %= hashMapSize;
-
-    return hash;
-}
-
-std::vector<uint32_t> FluidHashGrid::getNeighbourOfParticleIdx(uint64_t i) {
-    auto neighbors = std::vector<uint32_t>();
-    
-    uint64_t particleGridX= static_cast<uint64_t>(particles[i].position.x / cellSize);
-    uint64_t particleGridY= static_cast<uint64_t>(particles[i].position.y / cellSize);
-
-    for (int x = -1; x <= 1; x++) {
-        for(int y = -1; y<=1; y++) {
-            uint64_t gridX = particleGridX + x;
-            uint64_t gridY = particleGridY + y;
-
-            uint64_t hash = cellIndexToHash(gridX, gridY);
-            auto content = getContentCell(hash);
-
-            if (content == nullptr) continue;
-            neighbors.insert(neighbors.end(), content->begin(), content->end());
-        }
+    if (width == worldWidth && height == worldHeight && newCellsX == cellsX && newCellsY == cellsY) {
+        return;
     }
 
-    return neighbors;
-}
+    worldWidth = width;
+    worldHeight = height;
+    cellsX = newCellsX;
+    cellsY = newCellsY;
 
-void FluidHashGrid::mapParticleToCell() {
-
-    for (int i = 0; i < particles.size(); i++) {
-        uint64_t hash =  getGridHashFromPosition(particles[i].position);
-        auto it = map.find(hash);
-
-        if (it == map.end()) {
-            //TODO if a vector is there 
-            auto particleGrid = std::vector<uint32_t>();
-            particleGrid.push_back(i);
-            //map.emplace(hash, particleGrid); // Use emplace to construct the value in-place1
-            map[hash] = particleGrid;
-        } else {
-            it->second.push_back(i);
-        }
-    }
-}
-
-std::vector<uint32_t> *FluidHashGrid::getContentCell(uint64_t id) {
-    auto it = map.find(id);
-
-    if (it == map.end()) {
-        return nullptr;
-    }
-
-    return &it->second;
+    cellHead.assign(static_cast<size_t>(cellsX * cellsY), -1);
 }
 
 void FluidHashGrid::clearGrid() {
-    for (auto &item: map) {
-        item.second.clear();
+    // Dense grid for a fixed-size domain: clearing by fill is fast.
+    std::fill(cellHead.begin(), cellHead.end(), -1);
+}
+
+void FluidHashGrid::mapParticleToCell() {
+    if (cellsX <= 0 || cellsY <= 0) return;
+
+    if (next.size() != particles.size()) {
+        next.assign(particles.size(), -1);
     }
 
+    const int maxX = cellsX - 1;
+    const int maxY = cellsY - 1;
+
+    for (uint32_t i = 0; i < static_cast<uint32_t>(particles.size()); ++i) {
+        const Vector2 p = particles[i].position;
+
+        int x = static_cast<int>(p.x * invCellSize);
+        int y = static_cast<int>(p.y * invCellSize);
+
+        // Clamp to grid.
+        if (x < 0) x = 0;
+        else if (x > maxX) x = maxX;
+        if (y < 0) y = 0;
+        else if (y > maxY) y = maxY;
+
+        const int cell = x + y * cellsX;
+        next[i] = cellHead[cell];
+        cellHead[cell] = static_cast<int32_t>(i);
+    }
 }
+

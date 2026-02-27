@@ -1,12 +1,12 @@
 #include "sim.h"
 #include "fluidhashgrid.h"
 #include "particle.h"
+#include "profiler.h"
 #include "utils.h"
 #include <cmath>
 #include <cstdlib>
 #include <raylib.h>
 #include <vector>
-#include <omp.h>
 
 using myMaths::randf;
 
@@ -81,93 +81,124 @@ void Sim::applyGravity(float dt) {
 }
 
 void Sim::doubleDensityRelaxation(float dt) {
-    #pragma omp parallel for
-    for (int i = 0; i < particles.size(); i++) {
-        float density = 0.f;
-        float nearDensity = 0.f;
-        auto neighbourParticles = fluidHashGrid.getNeighbourOfParticleIdx(i);
-        for (int j = 0; j < neighbourParticles.size(); j++) {
-            if (&particles[neighbourParticles[j]] == &particles[i]) continue;
+    // Major hot-path optimizations:
+    // - no per-particle neighbor allocations (callback iteration)
+    // - no std::pow() in the inner loops
+    // - early reject by squared-distance (avoid sqrt)
+    // NOTE: This function updates neighbor particle positions, so a naive OpenMP parallel-for
+    // would introduce data races and nondeterministic results.
+    const float R = INTERACTION_RADIUS;
+    const float invR = 1.0f / R;
+    const float R2 = R * R;
+    const float dt2 = dt * dt;
 
-            Vector2 rij = Vec2Ops::sub(particles[neighbourParticles[j]].position, particles[i].position);
-            float q = Vec2Ops::length(rij) / INTERACTION_RADIUS;
+    for (uint32_t i = 0; i < static_cast<uint32_t>(particles.size()); ++i) {
+        const Vector2 pi = particles[i].position;
+        float density = 0.0f;
+        float nearDensity = 0.0f;
 
-            if (q < 1.f) {
-                density += std::pow(1 - q, 2);
-                nearDensity += std::pow(1 - q, 3);
+        fluidHashGrid.forEachNeighbourOfParticleIdx(i, [&](uint32_t j) {
+            if (j == i) return;
+            const Vector2 pj = particles[j].position;
+            const float dx = pj.x - pi.x;
+            const float dy = pj.y - pi.y;
+            const float r2 = dx * dx + dy * dy;
+            if (r2 >= R2 || r2 <= 0.0f) return;
 
-            }
-        }
+            const float q = std::sqrt(r2) * invR;
+            const float oneMinus = 1.0f - q;
+            const float oneMinus2 = oneMinus * oneMinus;
+            density += oneMinus2;
+            nearDensity += oneMinus2 * oneMinus;
+        });
 
-        auto pressure = k * (density - REST_DENSITY);
-        auto pressureNear = k_NEAR * nearDensity;
-        Vector2 particleADisplacement = Vec2Ops::ZERO;
+        const float pressure = k * (density - REST_DENSITY);
+        const float pressureNear = k_NEAR * nearDensity;
 
-        for (int j = 0; j < neighbourParticles.size(); j++) {
-            if (&particles[neighbourParticles[j]] == &particles[i]) continue;
+        Vector2 displacementI = Vec2Ops::ZERO;
 
-            Vector2 rij = Vec2Ops::sub(particles[neighbourParticles[j]].position, particles[i].position);
-            float q = Vec2Ops::length(rij) / INTERACTION_RADIUS;
+        fluidHashGrid.forEachNeighbourOfParticleIdx(i, [&](uint32_t j) {
+            if (j == i) return;
+            Vector2 &pj = particles[j].position;
 
-            if (q < 1.f) {
-                Vec2Ops::normalize(rij);
-                auto displacementTerm = std::pow(dt, 2) *
-                    (pressure * (1-q) + pressureNear * std::pow(1-q, 2));
+            const float dx = pj.x - pi.x;
+            const float dy = pj.y - pi.y;
+            const float r2 = dx * dx + dy * dy;
+            if (r2 >= R2 || r2 <= 1e-12f) return;
 
-                Vector2 D = Vec2Ops::scale(rij, displacementTerm);
-                particles[neighbourParticles[j]].position = Vec2Ops::add(particles[neighbourParticles[j]].position,
-                    Vec2Ops::scale(D, .5));
-                particleADisplacement = Vec2Ops::sub(particleADisplacement, 
-                    Vec2Ops::scale(D, .5));
-                
-            }
-        }
-        particles[i].position = Vec2Ops::add(particles[i].position, particleADisplacement);
+            const float invLen = 1.0f / std::sqrt(r2);
+            const float q = (1.0f / invLen) * invR; // sqrt(r2) * invR
+            const float oneMinus = 1.0f - q;
+            const float oneMinus2 = oneMinus * oneMinus;
+
+            const float displacementTerm = dt2 * (pressure * oneMinus + pressureNear * oneMinus2);
+            const float nx = dx * invLen;
+            const float ny = dy * invLen;
+
+            const float Dx = nx * displacementTerm;
+            const float Dy = ny * displacementTerm;
+
+            pj.x += Dx * 0.5f;
+            pj.y += Dy * 0.5f;
+            displacementI.x -= Dx * 0.5f;
+            displacementI.y -= Dy * 0.5f;
+        });
+
+        particles[i].position.x += displacementI.x;
+        particles[i].position.y += displacementI.y;
     }
 }
 
 void Sim::neighbourSearch() {
+    fluidHashGrid.setWorldSize(GetScreenWidth(), GetScreenHeight());
     fluidHashGrid.clearGrid();
     fluidHashGrid.mapParticleToCell();
 }
 
 void Sim::worldBoundary() {
+    const float minX = static_cast<float>(PARTICLE_RADIUS);
+    const float minY = static_cast<float>(PARTICLE_RADIUS);
+    const float maxX = static_cast<float>(GetScreenWidth() - PARTICLE_RADIUS - 1);
+    const float maxY = static_cast<float>(GetScreenHeight() - PARTICLE_RADIUS - 1);
+
     for (auto &particle: particles) {
 
 
-        if (particle.position.x < PARTICLE_RADIUS) {
+        if (particle.position.x < minX) {
             // particle.velocity.x *= -1;
-            particle.position.x = PARTICLE_RADIUS;
-            particle.prevPosition.x = PARTICLE_RADIUS;
+            particle.position.x = minX;
+            particle.prevPosition.x = minX;
         }
 
-        if (particle.position.y < PARTICLE_RADIUS) {
+        if (particle.position.y < minY) {
             // particle.velocity.y *= -1;
-            particle.position.y = PARTICLE_RADIUS;
-            particle.prevPosition.y = PARTICLE_RADIUS;
+            particle.position.y = minY;
+            particle.prevPosition.y = minY;
         }
 
-        if (particle.position.x > GetScreenWidth() - PARTICLE_RADIUS ) {
+        if (particle.position.x > maxX) {
             // particle.velocity.x *= -1 ;
-            particle.position.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
-            particle.prevPosition.x = GetScreenWidth() - PARTICLE_RADIUS - 1;
+            particle.position.x = maxX;
+            particle.prevPosition.x = maxX;
         }
 
-        if (particle.position.y > GetScreenHeight() - PARTICLE_RADIUS ) {
+        if (particle.position.y > maxY) {
             // particle.velocity.y *= -1;
-            particle.position.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
-            particle.prevPosition.y = GetScreenHeight() - PARTICLE_RADIUS - 1;
+            particle.position.y = maxY;
+            particle.prevPosition.y = maxY;
         }
     }
 }
 
 void Sim::update(float dt) {
-    neighbourSearch();
-    applyGravity(dt);
-    predictPosition(dt);
-    doubleDensityRelaxation(dt);
-    worldBoundary();
-    computeNextVelocity(dt);
+    { FluidSimProfiler::Scope _s(FluidSimProfiler::Section::NeighbourSearch); neighbourSearch(); }
+    { FluidSimProfiler::Scope _s(FluidSimProfiler::Section::Gravity); applyGravity(dt); }
+    { FluidSimProfiler::Scope _s(FluidSimProfiler::Section::Predict); predictPosition(dt); }
+    { FluidSimProfiler::Scope _s(FluidSimProfiler::Section::Relaxation); doubleDensityRelaxation(dt); }
+    { FluidSimProfiler::Scope _s(FluidSimProfiler::Section::Boundary); worldBoundary(); }
+    { FluidSimProfiler::Scope _s(FluidSimProfiler::Section::Velocity); computeNextVelocity(dt); }
+
+    FluidSimProfiler::endFrame();
 }
 
 void Sim::draw() {

@@ -3,9 +3,15 @@
 #include <raylib.h>
 namespace Vec2Ops {
     inline void normalize(Vector2 &v1) {
-        float length = std::sqrt(v1.x*v1.x + v1.y*v1.y);
-        v1.x /= length;
-        v1.y /= length;
+        const float len2 = v1.x * v1.x + v1.y * v1.y;
+        if (len2 <= 1e-12f) {
+            v1.x = 0.0f;
+            v1.y = 0.0f;
+            return;
+        }
+        const float invLen = 1.0f / std::sqrt(len2);
+        v1.x *= invLen;
+        v1.y *= invLen;
     }
 
     inline float length(const Vector2 &v1) {
